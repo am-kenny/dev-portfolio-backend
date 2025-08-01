@@ -3,6 +3,8 @@ import cors from 'cors';
 import jwt from 'jsonwebtoken';
 import dotenv from 'dotenv';
 import portfolioRoutes from './routes/portfolio.js';
+import { initializeDataDirectory, resetDataDirectory } from './utils/dataInitializer.js';
+import { authenticateToken } from './middleware/auth.js';
 
 // Load environment variables
 dotenv.config();
@@ -38,7 +40,27 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok' });
 });
 
+// Development endpoint to reset data (only in development)
+if (process.env.NODE_ENV === 'development') {
+  app.post('/api/reset-data', authenticateToken, async (req, res) => {
+    try {
+      await resetDataDirectory();
+      res.json({ message: 'Data directory reset successfully' });
+    } catch (error) {
+      console.error('Error resetting data directory:', error);
+      res.status(500).json({ error: 'Error resetting data directory' });
+    }
+  });
+}
+
 // Start server
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   console.log(`Server running on port ${PORT}`);
+  
+  // Initialize data directory if it doesn't exist
+  try {
+    await initializeDataDirectory();
+  } catch (error) {
+    console.error('Error initializing data directory:', error);
+  }
 }); 

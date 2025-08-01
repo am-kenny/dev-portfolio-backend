@@ -1,0 +1,28 @@
+{
+  "projects": [
+    {
+      "name": "Portfolio Website",
+      "description": "A personal portfolio website built with modern web technologies. Features include responsive design, dynamic content management, and contact forms.",
+      "image": "https://picsum.photos/300/200",
+      "github": "https://github.com/yourusername/portfolio",
+      "technologies": [
+        "React",
+        "Node.js",
+        "Express",
+        "MongoDB"
+      ]
+    },
+    {
+      "name": "Application Name",
+      "description": "Description 2",
+      "image": "https://picsum.photos/300/200",
+      "github": "https://github.com/yourusername/applicationname",
+      "technologies": [
+        "React",
+        "Socket.io",
+        "Express",
+        "PostgreSQL"
+      ]
+    }
+  ]
+}

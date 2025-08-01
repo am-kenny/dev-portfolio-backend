@@ -1,0 +1,38 @@
+{
+  "skillCategories": {
+    "Frontend": [
+      {
+        "name": "React",
+        "level": "intermediate"
+      },
+      {
+        "name": "JavaScript",
+        "level": "advanced"
+      },
+      {
+        "name": "HTML/CSS",
+        "level": "advanced"
+      }
+    ],
+    "Backend": [
+      {
+        "name": "Node.js",
+        "level": "intermediate"
+      },
+      {
+        "name": "Express",
+        "level": "intermediate"
+      }
+    ],
+    "Database": [
+      {
+        "name": "MongoDB",
+        "level": "intermediate"
+      },
+      {
+        "name": "PostgreSQL",
+        "level": "intermediate"
+      }
+    ]
+  }
+}
