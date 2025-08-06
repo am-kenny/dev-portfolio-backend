@@ -37,7 +37,7 @@ const readSectionData = async (section) => {
 };
 
 // Helper function to write section data
-const writeSectionData = async (section, data) => {
+export const writeSectionData = async (section, data) => {
   await fs.writeFile(
     getSectionPath(section),
     JSON.stringify(data, null, 2),
