@@ -1,38 +1,94 @@
 {
   "skillCategories": {
-    "Frontend": [
-      {
-        "name": "React",
-        "level": "intermediate"
-      },
-      {
-        "name": "JavaScript",
-        "level": "advanced"
-      },
-      {
-        "name": "HTML/CSS",
-        "level": "advanced"
-      }
-    ],
-    "Backend": [
+    "Frontend Development": {
+      "Languages": [
+        {
+          "name": "JavaScript",
+          "level": "advanced"
+        },
+        {
+          "name": "TypeScript",
+          "level": "intermediate"
+        },
+        {
+          "name": "HTML/CSS",
+          "level": "advanced"
+        }
+      ],
+      "Frameworks": [
+        {
+          "name": "React",
+          "level": "advanced"
+        },
+        {
+          "name": "Vue.js",
+          "level": "intermediate"
+        }
+      ],
+      "Styling": [
+        {
+          "name": "Sass",
+          "level": "intermediate"
+        },
+        {
+          "name": "Tailwind CSS",
+          "level": "advanced"
+        }
+      ]
+    },
+    "Backend Development": [
       {
         "name": "Node.js",
-        "level": "intermediate"
+        "level": "advanced"
       },
       {
         "name": "Express",
         "level": "intermediate"
-      }
-    ],
-    "Database": [
+      },
       {
-        "name": "MongoDB",
+        "name": "Python",
         "level": "intermediate"
       },
       {
-        "name": "PostgreSQL",
+        "name": "Django",
+        "level": "intermediate"
+      }
+    ],
+    "DevOps & Infrastructure": {
+      "Cloud": [
+        {
+          "name": "AWS",
+          "level": "intermediate"
+        }
+      ],
+      "Containers": [
+        {
+          "name": "Docker",
+          "level": "intermediate"
+        },
+        {
+          "name": "Kubernetes",
+          "level": "beginner"
+        }
+      ]
+    },
+    "Tools & Platforms": [
+      {
+        "name": "Git",
+        "level": "advanced"
+      },
+      {
+        "name": "Jira",
         "level": "intermediate"
       }
     ]
+  },
+  "categorization": {
+    "useSubcategories": true,
+    "minSkillsForSubcategory": 3,
+    "categoryOverrides": {
+      "Backend Development": "flat",
+      "Tools & Platforms": "flat"
+    }
   }
 }

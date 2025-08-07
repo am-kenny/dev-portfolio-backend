@@ -34,7 +34,12 @@ router.post('/preview-csv', authenticateToken, upload.array('files', 10), async 
     }
 
     const csvData = await parseLinkedInCSV(req.files);
-    const portfolioData = transformLinkedInData(csvData);
+    const categorization = req.body.categorization || {
+      useSubcategories: true,
+      minSkillsForSubcategory: 3,
+      categoryOverrides: {}
+    };
+    const portfolioData = transformLinkedInData(csvData, categorization);
     
     res.json({ 
       message: 'CSV data preview',
@@ -64,7 +69,12 @@ router.post('/upload-csv', authenticateToken, upload.array('files', 10), async (
     }
 
     const csvData = await parseLinkedInCSV(req.files);
-    const portfolioData = transformLinkedInData(csvData);
+    const categorization = req.body.categorization || {
+      useSubcategories: true,
+      minSkillsForSubcategory: 3,
+      categoryOverrides: {}
+    };
+    const portfolioData = transformLinkedInData(csvData, categorization);
     
     // Save to portfolio sections
     await saveToPortfolio(portfolioData);
@@ -116,6 +126,8 @@ async function parseLinkedInCSV(files) {
       }
     } catch (error) {
       console.error(`Error parsing ${fileName}:`, error);
+      // Continue with other files even if one fails
+      // You might want to add this error to the response
     }
   }
 
@@ -126,7 +138,12 @@ async function parseLinkedInCSV(files) {
  * Parse profile CSV
  */
 function parseProfileCSV(csvContent) {
-  const lines = csvContent.split('\n');
+  const lines = csvContent.split('\n').filter(line => line.trim());
+  
+  if (lines.length < 2) {
+    throw new Error('Profile CSV must have at least header and one data row');
+  }
+  
   const headers = lines[0].split(',').map(h => h.trim());
   const data = lines[1].split(',').map(d => d.trim());
   
@@ -163,16 +180,36 @@ function parsePositionsCSV(csvContent) {
  */
 function parseSkillsCSV(csvContent) {
   const lines = csvContent.split('\n').filter(line => line.trim());
-  const headers = lines[0].split(',').map(h => h.trim());
+  
+  // Handle simple skills format (just names)
+  if (lines.length === 0) return [];
+  
   const skills = [];
   
-  for (let i = 1; i < lines.length; i++) {
-    const data = lines[i].split(',').map(d => d.trim());
-    const skill = {};
-    headers.forEach((header, index) => {
-      skill[header.toLowerCase()] = data[index] || '';
-    });
-    skills.push(skill);
+  // Check if it's a simple format with just skill names
+  if (lines.length === 1 || (lines.length > 1 && lines[0].toLowerCase().includes('name'))) {
+    // Simple format: just skill names, one per line
+    for (let i = 1; i < lines.length; i++) {
+      const skillName = lines[i].trim();
+      if (skillName) {
+        skills.push({
+          name: skillName,
+          level: 'intermediate' // Default level
+        });
+      }
+    }
+  } else {
+    // Complex format with headers
+    const headers = lines[0].split(',').map(h => h.trim());
+    
+    for (let i = 1; i < lines.length; i++) {
+      const data = lines[i].split(',').map(d => d.trim());
+      const skill = {};
+      headers.forEach((header, index) => {
+        skill[header.toLowerCase()] = data[index] || '';
+      });
+      skills.push(skill);
+    }
   }
   
   return skills;
@@ -201,7 +238,11 @@ function parseEducationCSV(csvContent) {
 /**
  * Transform LinkedIn data to portfolio format
  */
-function transformLinkedInData(csvData) {
+function transformLinkedInData(csvData, userPreferences = {
+  useSubcategories: true,
+  minSkillsForSubcategory: 3,
+  categoryOverrides: {}
+}) {
   const portfolioData = {};
 
   // Transform profile data
@@ -242,73 +283,169 @@ function transformLinkedInData(csvData) {
 
   // Transform skills data
   if (csvData.skills && csvData.skills.length > 0) {
-    const categories = {
-      'Languages': [],
-      'Frontend': [],
-      'Backend': [],
-      'Databases': [],
-      'DevOps & Cloud': [],
-      'Tools': [],
-      'Other': []
+    // Role-based hierarchy with subcategories
+    const roleCategories = {
+      'Frontend Development': {
+        'Languages': ['javascript', 'typescript', 'html', 'css'],
+        'Frameworks': ['react', 'vue', 'angular', 'svelte', 'next.js', 'nuxt.js'],
+        'Styling': ['sass', 'less', 'bootstrap', 'tailwind', 'styled-components'],
+        'Build Tools': ['webpack', 'vite', 'parcel', 'gulp']
+      },
+      'Backend Development': {
+        'Languages': ['python', 'java', 'c#', 'go', 'php', 'ruby', 'node.js'],
+        'Frameworks': ['express', 'django', 'spring', 'fastapi', 'laravel', 'asp.net'],
+        'APIs': ['rest', 'graphql', 'grpc', 'soap'],
+        'Architecture': ['microservices', 'monolith', 'serverless', 'event-driven']
+      },
+      'Data & Analytics': {
+        'Databases': ['mongodb', 'postgresql', 'mysql', 'sqlite', 'redis', 'elasticsearch'],
+        'Big Data': ['hadoop', 'spark', 'kafka', 'airflow', 'snowflake'],
+        'Analytics': ['tableau', 'power bi', 'python pandas', 'numpy'],
+        'Machine Learning': ['tensorflow', 'pytorch', 'scikit-learn', 'keras']
+      },
+      'DevOps & Infrastructure': {
+        'Cloud': ['aws', 'azure', 'google cloud', 'gcp'],
+        'Containers': ['docker', 'kubernetes', 'podman', 'rancher'],
+        'CI/CD': ['jenkins', 'gitlab ci', 'github actions', 'circleci'],
+        'Monitoring': ['prometheus', 'grafana', 'elk stack', 'datadog']
+      },
+      'Tools & Platforms': {
+        'Version Control': ['git', 'github', 'gitlab', 'bitbucket'],
+        'Project Management': ['jira', 'confluence', 'notion', 'trello'],
+        'Development': ['vs code', 'intellij', 'postman', 'swagger'],
+        'Testing': ['jest', 'cypress', 'selenium', 'junit']
+      },
+      'Other': {
+        'General': ['leadership', 'communication', 'problem solving', 'teamwork'],
+        'Soft Skills': ['presentation', 'negotiation', 'mentoring', 'collaboration'],
+        'Domain Knowledge': ['finance', 'healthcare', 'ecommerce', 'education'],
+        'Certifications': ['pmp', 'scrum', 'agile', 'six sigma']
+      }
     };
 
-    const skillCategories = {
-      'Languages': [
-        'python', 'java', 'javascript', 'typescript', 'go', 'c++', 'c#', 'php', 'ruby', 'swift', 'kotlin', 'rust'
-      ],
-      'Frontend': [
-        'react', 'vue', 'angular', 'html', 'css', 'sass', 'less', 'bootstrap', 'tailwind', 'redux', 'next.js', 'nuxt.js'
-      ],
-      'Backend': [
-        'node.js', 'express', 'django', 'flask', 'fastapi', 'spring', 'spring boot', 'spring mvc', 'laravel', 'asp.net',
-        'spring framework', 'spring security', 'hibernate', 'thymeleaf', 'gradle', 'maven', 'celery'
-      ],
-      'Databases': [
-        'mongodb', 'postgresql', 'mysql', 'sqlite', 'redis', 'elasticsearch', 'big data', 'data analytics', 'sql'
-      ],
-      'DevOps & Cloud': [
-        'aws', 'azure', 'gcp', 'docker', 'kubernetes', 'jenkins', 'gitlab', 'ci/cd', 'terraform', 'ansible'
-      ],
-      'Tools': [
-        'git', 'github', 'jira', 'confluence', 'notion', 'postman', 'vagrant', 'inno setup', 'linux'
-      ]
-    };
 
+
+    // Categorize skills
+    const categorizedSkills = {};
+    
     csvData.skills.forEach(skill => {
       const skillName = skill.name || skill.skill_name || skill;
       const skillLevel = skill.level || skill.proficiency || 'intermediate';
-      
-      let category = 'Other';
       const skillNameLower = skillName.toLowerCase();
       
-      // Simple and clear matching
-      for (const [catName, catSkills] of Object.entries(skillCategories)) {
-        if (catSkills.some(catSkill => skillNameLower.includes(catSkill.toLowerCase()))) {
-          category = catName;
-          break;
+      let assignedRole = 'Other';
+      let assignedSubcategory = null;
+      
+      // Find the best matching role and subcategory
+      for (const [role, subcategories] of Object.entries(roleCategories)) {
+        if (typeof subcategories === 'object' && !Array.isArray(subcategories)) {
+          // Check subcategories
+          for (const [subcategory, skills] of Object.entries(subcategories)) {
+            if (skills.some(skillKeyword => {
+              const keyword = skillKeyword.toLowerCase();
+              return skillNameLower.includes(keyword) || 
+                     skillNameLower.includes(keyword.replace(' ', '')) ||
+                     skillNameLower.includes(keyword.replace(' ', '-')) ||
+                     skillNameLower.includes(keyword.replace(' ', '.')) ||
+                     skillNameLower.includes(keyword.replace(' ', '_'));
+            })) {
+              assignedRole = role;
+              assignedSubcategory = subcategory;
+              break;
+            }
+          }
+          if (assignedRole !== 'Other') break; // Stop if we found a match
+        } else if (Array.isArray(subcategories)) {
+          // Check role-level skills
+          if (subcategories.some(skillKeyword => {
+            const keyword = skillKeyword.toLowerCase();
+            return skillNameLower.includes(keyword) || 
+                   skillNameLower.includes(keyword.replace(' ', '')) ||
+                   skillNameLower.includes(keyword.replace(' ', '-')) ||
+                   skillNameLower.includes(keyword.replace(' ', '.')) ||
+                   skillNameLower.includes(keyword.replace(' ', '_'));
+          })) {
+            assignedRole = role;
+            break;
+          }
         }
       }
       
-      if (!categories[category]) {
-        categories[category] = [];
+      // Initialize role if not exists
+      if (!categorizedSkills[assignedRole]) {
+        categorizedSkills[assignedRole] = {};
       }
       
-      categories[category].push({
-        name: skillName,
-        level: skillLevel
-      });
+      // Add to appropriate subcategory or role level
+      if (assignedSubcategory) {
+        if (!categorizedSkills[assignedRole][assignedSubcategory]) {
+          categorizedSkills[assignedRole][assignedSubcategory] = [];
+        }
+        categorizedSkills[assignedRole][assignedSubcategory].push({
+          name: skillName,
+          level: skillLevel
+        });
+      } else {
+        if (!categorizedSkills[assignedRole]['Other']) {
+          categorizedSkills[assignedRole]['Other'] = [];
+        }
+        categorizedSkills[assignedRole]['Other'].push({
+          name: skillName,
+          level: skillLevel
+        });
+      }
     });
 
-    // Remove empty categories
-    const filteredCategories = {};
-    Object.entries(categories).forEach(([category, skills]) => {
-      if (skills.length > 0) {
-        filteredCategories[category] = skills;
+    // Apply user preferences and smart defaults
+    const finalSkills = {};
+    
+    // Define the preferred order of roles
+    const roleOrder = [
+      'Frontend Development',
+      'Backend Development', 
+      'Data & Analytics',
+      'DevOps & Infrastructure',
+      'Tools & Platforms',
+      'Other'
+    ];
+    
+    // Sort roles by preferred order
+    const sortedRoles = Object.keys(categorizedSkills).sort((a, b) => {
+      const aIndex = roleOrder.indexOf(a);
+      const bIndex = roleOrder.indexOf(b);
+      return aIndex - bIndex;
+    });
+    
+    sortedRoles.forEach(role => {
+      const subcategories = categorizedSkills[role];
+      const userOverride = userPreferences.categoryOverrides?.[role];
+      const totalSkills = Object.values(subcategories).flat().length;
+      
+      if (userOverride === 'flat' || (!userPreferences.useSubcategories && totalSkills < userPreferences.minSkillsForSubcategory)) {
+        // Flatten the structure
+        finalSkills[role] = Object.values(subcategories).flat();
+      } else if (userOverride === 'subcategories' || (userPreferences.useSubcategories && totalSkills >= userPreferences.minSkillsForSubcategory)) {
+        // Use subcategories, but remove empty ones
+        const filteredSubcategories = {};
+        Object.entries(subcategories).forEach(([subcategory, skills]) => {
+          if (skills.length > 0) {
+            filteredSubcategories[subcategory] = skills;
+          }
+        });
+        finalSkills[role] = filteredSubcategories;
+      } else {
+        // Default to flat for small categories
+        finalSkills[role] = Object.values(subcategories).flat();
       }
     });
 
     portfolioData.skills = {
-      skillCategories: filteredCategories
+      skillCategories: finalSkills,
+      categorization: {
+        useSubcategories: userPreferences.useSubcategories,
+        minSkillsForSubcategory: userPreferences.minSkillsForSubcategory,
+        categoryOverrides: userPreferences.categoryOverrides || {}
+      }
     };
   }
 
@@ -346,5 +483,83 @@ async function saveToPortfolio(portfolioData) {
     }
   }
 }
+
+/**
+ * GET /api/linkedin/configure-categorization
+ * Get current skill categorization preferences
+ */
+router.get('/configure-categorization', authenticateToken, async (req, res) => {
+  try {
+    const fs = await import('fs/promises');
+    const path = await import('path');
+    
+    const preferencesPath = path.join(process.cwd(), 'data', 'categorization.json');
+    
+    try {
+      const data = await fs.readFile(preferencesPath, 'utf8');
+      const preferences = JSON.parse(data);
+      res.json(preferences);
+    } catch (error) {
+      if (error.code === 'ENOENT') {
+        // Return default preferences if file doesn't exist
+        const defaultPreferences = {
+          useSubcategories: true,
+          minSkillsForSubcategory: 3,
+          categoryOverrides: {}
+        };
+        res.json(defaultPreferences);
+      } else {
+        throw error;
+      }
+    }
+  } catch (error) {
+    console.error('Error fetching categorization preferences:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch categorization preferences',
+      details: error.message 
+    });
+  }
+});
+
+/**
+ * POST /api/linkedin/configure-categorization
+ * Configure skill categorization preferences
+ */
+router.post('/configure-categorization', authenticateToken, async (req, res) => {
+  try {
+    const { categorization } = req.body;
+    
+    if (!categorization) {
+      return res.status(400).json({ 
+        error: 'Categorization preferences are required' 
+      });
+    }
+
+    // Validate categorization preferences
+    const validPreferences = {
+      useSubcategories: categorization.useSubcategories ?? true,
+      minSkillsForSubcategory: categorization.minSkillsForSubcategory ?? 3,
+      categoryOverrides: categorization.categoryOverrides || {}
+    };
+
+    // Save preferences to file
+    const fs = await import('fs/promises');
+    const path = await import('path');
+    
+    const preferencesPath = path.join(process.cwd(), 'data', 'categorization.json');
+    await fs.writeFile(preferencesPath, JSON.stringify(validPreferences, null, 2));
+
+    res.json({ 
+      message: 'Categorization preferences updated successfully',
+      preferences: validPreferences
+    });
+  } catch (error) {
+    console.error('Error configuring categorization:', error);
+    res.status(500).json({ 
+      error: 'Failed to configure categorization',
+      details: error.message 
+    });
+  }
+});
 
 export default router; 

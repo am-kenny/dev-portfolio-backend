@@ -36,6 +36,29 @@ const readSectionData = async (section) => {
   return parsedData;
 };
 
+// Helper function to flatten hierarchical skills for backward compatibility
+const flattenSkills = (skillCategories) => {
+  const flattened = {};
+  
+  Object.entries(skillCategories).forEach(([category, skills]) => {
+    if (Array.isArray(skills)) {
+      // Already flat
+      flattened[category] = skills;
+    } else if (typeof skills === 'object') {
+      // Hierarchical - flatten all subcategories
+      const allSkills = [];
+      Object.values(skills).forEach(subcategorySkills => {
+        if (Array.isArray(subcategorySkills)) {
+          allSkills.push(...subcategorySkills);
+        }
+      });
+      flattened[category] = allSkills;
+    }
+  });
+  
+  return flattened;
+};
+
 // Helper function to write section data
 export const writeSectionData = async (section, data) => {
   await fs.writeFile(
@@ -81,6 +104,44 @@ router.get('/:section', async (req, res) => {
     }
     console.error('Error reading portfolio section:', error);
     res.status(500).json({ error: 'Error reading portfolio section' });
+  }
+});
+
+// Get skills structure and categories
+router.get('/skills/structure', async (req, res) => {
+  try {
+    const skillsStructure = {
+      availableRoles: [
+        'Frontend Development',
+        'Backend Development',
+        'Data & Analytics',
+        'DevOps & Infrastructure',
+        'Tools & Platforms',
+        'Other'
+      ]
+    };
+    
+    res.json(skillsStructure);
+  } catch (error) {
+    console.error('Error getting skills structure:', error);
+    res.status(500).json({ error: 'Error getting skills structure' });
+  }
+});
+
+// Get flattened skills for backward compatibility
+router.get('/skills/flat', async (req, res) => {
+  try {
+    const skillsData = await readSectionData('skills');
+    const flattenedSkills = {
+      skillCategories: flattenSkills(skillsData.skillCategories)
+    };
+    res.json(flattenedSkills);
+  } catch (error) {
+    if (error.code === 'ENOENT') {
+      return res.status(404).json({ error: 'Skills section not found' });
+    }
+    console.error('Error reading flattened skills:', error);
+    res.status(500).json({ error: 'Error reading flattened skills' });
   }
 });
 

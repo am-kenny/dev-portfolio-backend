@@ -15,17 +15,38 @@ export const aboutSchema = Joi.object({
   content: Joi.string().required().min(10).max(1000)
 });
 
-// Skills Schema
+// Skills Schema - Supports both flat and hierarchical structures
 export const skillsSchema = Joi.object({
   skillCategories: Joi.object().pattern(
     Joi.string(),
-    Joi.array().items(
-      Joi.object({
-        name: Joi.string().required().min(1).max(50),
-        level: Joi.string().valid(...Object.values(SkillLevels)).required()
-      })
+    Joi.alternatives().try(
+      // Flat structure: array of skills
+      Joi.array().items(
+        Joi.object({
+          name: Joi.string().required().min(1).max(100),
+          level: Joi.string().valid(...Object.values(SkillLevels)).required()
+        })
+      ),
+      // Hierarchical structure: object with subcategories
+      Joi.object().pattern(
+        Joi.string(),
+        Joi.array().items(
+          Joi.object({
+            name: Joi.string().required().min(1).max(100),
+            level: Joi.string().valid(...Object.values(SkillLevels)).required()
+          })
+        )
+      )
     )
-  ).required()
+  ).required(),
+  categorization: Joi.object({
+    useSubcategories: Joi.boolean().default(true),
+    minSkillsForSubcategory: Joi.number().integer().min(1).max(10).default(3),
+    categoryOverrides: Joi.object().pattern(
+      Joi.string(),
+      Joi.string().valid('flat', 'subcategories')
+    ).default({})
+  }).optional()
 });
 
 // Experience Schema
@@ -94,4 +115,6 @@ export const validateSection = (section, data) => {
     abortEarly: false, // Return all errors, not just the first one
     stripUnknown: true // Remove unknown fields
   });
-}; 
+};
+
+ 
